@@ -46,31 +46,50 @@ print(f"✅ {len(df)} enregistrements chargés")
 # =====================================================
 # NETTOYAGE OBLIGATOIRE POUR RENDER
 # =====================================================
+
+# Nettoyage de la colonne ÂGE (en premier car spéciale)
+if '_4_Quel_est_votre_ge_' in df.columns:
+    df['_4_Quel_est_votre_ge_'] = pd.to_numeric(df['_4_Quel_est_votre_ge_'], errors='coerce')
+    median_age = df['_4_Quel_est_votre_ge_'].median()
+    df['_4_Quel_est_votre_ge_'] = df['_4_Quel_est_votre_ge_'].fillna(median_age)
+    print(f"📊 Âges nettoyés - Médiane: {median_age}")
+
+# Nettoyage des colonnes catégorielles
 colonnes_a_nettoyer = [
-    '_1_a_Vous_etes_de_quelle_provi', # Province
-    '_3_Quel_est_votre_sexe_',        # Sexe
-    '_6_Quelle_culture_av_durant_le_projet_TMA', # Culture
-    '_8_Appliquez_vous_l_ue_dans_votre_champ_',  # Engrais
-    '_11_A_quel_niveau_tiez_vous_satisfait_',    # Satisfaction
-    '_submitted_by'                              # Enquêteur
+    '_1_a_Vous_etes_de_quelle_provi',
+    '_3_Quel_est_votre_sexe_',
+    '_6_Quelle_culture_av_durant_le_projet_TMA',
+    '_8_Appliquez_vous_l_ue_dans_votre_champ_',
+    '_11_A_quel_niveau_tiez_vous_satisfait_',
+    '_submitted_by'
 ]
 
 for col in colonnes_a_nettoyer:
     if col in df.columns:
-        # 1. Remplacer les valeurs manquantes (NaN) par une chaîne
-        df[col] = df[col].fillna('Non renseigné')
-        # 2. Convertir TOUTE la colonne en chaîne de caractères
-        df[col] = df[col].astype(str)
-        # 3. Nettoyer les éventuels 'nan' ou 'None' textuels
+        df[col] = df[col].fillna('Non renseigné').astype(str)
         df[col] = df[col].replace(['nan', 'None', 'NaN'], 'Non renseigné')
         print(f"🧹 Colonne nettoyée : {col}")
+
+# Nettoyage des dates
+if '_submission_time' in df.columns:
+    df['_submission_time'] = pd.to_datetime(df['_submission_time'], errors='coerce')
+    df = df.dropna(subset=['_submission_time'])
+
+# =====================================================
+# ⚠️ DÉFINITION DES VARIABLES (OBLIGATOIRE AVANT LE LAYOUT)
+# =====================================================
+OBJECTIF = 400
+POURCENTAGE = min(100, (len(df) / OBJECTIF) * 100) if len(df) > 0 else 0
+
+print(f"📊 Après nettoyage: {len(df)} enregistrements valides")
+print(f"📊 {POURCENTAGE:.0f}% de l'objectif {OBJECTIF} atteint")
+
 # =====================================================
 # LISTE DES VARIABLES DISPONIBLES
 # =====================================================
 
 toutes_les_variables = []
 
-# Variables spécifiques importantes
 colonnes_importantes = [
     '_1_a_Vous_etes_de_quelle_provi',
     '_3_Quel_est_votre_sexe_',
@@ -86,7 +105,6 @@ for col in colonnes_importantes:
         label = col.replace('_', ' ').replace('1 a', 'Province').replace('3', 'Sexe').replace('4', 'Âge').replace('6', 'Culture').replace('8', 'Engrais').replace('11', 'Satisfaction')
         toutes_les_variables.append({'label': label[:30], 'value': col})
 
-# Ajouter les autres colonnes
 for col in df.columns:
     if col not in colonnes_importantes and col not in ['_submission_time', '_id', '_uuid', '_attachments', '_tags', '_notes', '_geolocation', '_xform_id_string', 'meta/instanceID', 'meta/rootUuid']:
         toutes_les_variables.append({'label': col[:30], 'value': col})
@@ -98,7 +116,6 @@ for col in df.columns:
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
 app.layout = dbc.Container([
-    # HEADER avec jauge
     dbc.Row([
         dbc.Col([
             html.H1("📊 DASHBOARD TMA - ENDLINE", 
@@ -118,7 +135,6 @@ app.layout = dbc.Container([
         ], width=12)
     ]),
     
-    # LIGNE 1: Évolution + Barres horizontales provinces
     dbc.Row([
         dbc.Col([
             dbc.Card([
@@ -134,7 +150,6 @@ app.layout = dbc.Container([
         ], width=6)
     ], className="mb-4"),
     
-    # LIGNE 2: TABLEAU CROISÉ + GRAPHIQUE CÔTE À CÔTE
     dbc.Row([
         dbc.Col([
             dbc.Card([
@@ -198,7 +213,6 @@ app.layout = dbc.Container([
         ], width=6)
     ], className="mb-4"),
     
-    # LIGNE 3: FILTRES GLOBAUX
     dbc.Row([
         dbc.Col([
             dbc.Card([
@@ -288,7 +302,7 @@ app.layout = dbc.Container([
 ], fluid=True)
 
 # =====================================================
-# FONCTION DE FILTRAGE (Version robuste)
+# FONCTION DE FILTRAGE
 # =====================================================
 
 def filter_data(dff, periode, provinces, sexe, culture, engrais, satisfaction, enqueteurs, age_range):
@@ -297,52 +311,40 @@ def filter_data(dff, periode, provinces, sexe, culture, engrais, satisfaction, e
     if dff.empty:
         return dff
     
-    # Filtre période
     if periode != 9999 and '_submission_time' in dff.columns:
         start_date = datetime.now().date() - timedelta(days=periode)
         dff['date_only'] = pd.to_datetime(dff['_submission_time']).dt.date
         dff = dff[dff['date_only'] >= start_date]
     
-    # Filtre province
     if provinces and '_1_a_Vous_etes_de_quelle_provi' in dff.columns:
         dff = dff[dff['_1_a_Vous_etes_de_quelle_provi'].isin(provinces)]
     
-    # Filtre sexe
     if sexe and '_3_Quel_est_votre_sexe_' in dff.columns:
         dff = dff[dff['_3_Quel_est_votre_sexe_'].isin(sexe)]
     
-    # Filtre culture
     if culture and '_6_Quelle_culture_av_durant_le_projet_TMA' in dff.columns:
         dff = dff[dff['_6_Quelle_culture_av_durant_le_projet_TMA'].isin(culture)]
     
-    # Filtre engrais
     if engrais and '_8_Appliquez_vous_l_ue_dans_votre_champ_' in dff.columns:
         dff = dff[dff['_8_Appliquez_vous_l_ue_dans_votre_champ_'].isin(engrais)]
     
-    # Filtre satisfaction
     if satisfaction and '_11_A_quel_niveau_tiez_vous_satisfait_' in dff.columns:
         dff = dff[dff['_11_A_quel_niveau_tiez_vous_satisfait_'].isin(satisfaction)]
     
-    # Filtre enquêteur
     if enqueteurs and '_submitted_by' in dff.columns:
         dff = dff[dff['_submitted_by'].isin(enqueteurs)]
     
-    # Filtre âge (Version ROBUSTE)
     if '_4_Quel_est_votre_ge_' in dff.columns:
-        # Convertir en numérique, forcer les erreurs en NaN
         dff['_4_Quel_est_votre_ge_'] = pd.to_numeric(dff['_4_Quel_est_votre_ge_'], errors='coerce')
-        # Supprimer les lignes où l'âge est NaN
         dff = dff.dropna(subset=['_4_Quel_est_votre_ge_'])
-        # Appliquer le filtre de plage
         dff = dff[(dff['_4_Quel_est_votre_ge_'] >= age_range[0]) & (dff['_4_Quel_est_votre_ge_'] <= age_range[1])]
     
     return dff
 
 # =====================================================
-# CALLBACKS (IDENTIQUES À L'ORIGINAL)
+# CALLBACKS
 # =====================================================
 
-# Graphique évolution
 @app.callback(
     Output('graph_evolution', 'figure'),
     Input('filtre_periode', 'value'),
@@ -371,7 +373,6 @@ def update_evolution(periode, provinces, sexe, culture, engrais, satisfaction, e
     fig.update_layout(title=f"📈 {len(dff)} soumissions", xaxis_title="Date", yaxis_title="Par jour", yaxis2=dict(title="Cumul", overlaying='y', side='right'), template='plotly_white', height=400)
     return fig
 
-# Graphique provinces
 @app.callback(
     Output('graph_provinces', 'figure'),
     Input('filtre_periode', 'value'),
@@ -401,7 +402,6 @@ def update_provinces(periode, provinces, sexe, culture, engrais, satisfaction, e
     fig.update_traces(textposition='outside')
     return fig
 
-# Tableau croisé
 @app.callback(
     Output('pivot_table', 'children'),
     Input('pivot_lignes', 'value'),
@@ -453,7 +453,6 @@ def update_pivot(lignes, colonnes, type_aff, periode, provinces, sexe, culture, 
         ], className="table table-striped table-bordered table-hover table-sm")
     ])
 
-# Graphique analyse
 @app.callback(
     Output('graph_analyse', 'figure'),
     Input('analyse_variable', 'value'),
@@ -509,9 +508,7 @@ if __name__ == '__main__':
     print("🚀 DASHBOARD TMA - VERSION CORRIGÉE")
     print("="*60)
     print(f"\n📊 {len(df)} / {OBJECTIF} SOUMISSIONS")
-    print(f"📈 Objectif restant: {max(0, OBJECTIF - len(df))} soumissions")
-    print("\n🔍 Filtres disponibles sur TOUTES les variables")
-    print("\n📍 Lien public bientôt disponible")
+    print(f"📈 Progression: {POURCENTAGE:.0f}%")
     print("="*60 + "\n")
     
     app.run(debug=False, host='0.0.0.0', port=port)
