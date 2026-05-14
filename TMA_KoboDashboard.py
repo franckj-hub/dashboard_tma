@@ -19,10 +19,6 @@ import dash_bootstrap_components as dbc
 from datetime import datetime, timedelta
 import numpy as np
 
-# =====================================================
-# CONFIGURATION KOBO
-# =====================================================
-
 # ====================================================
 # CONFIGURATION KOBO
 # ====================================================
