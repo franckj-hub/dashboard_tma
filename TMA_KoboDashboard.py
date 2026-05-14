@@ -44,43 +44,41 @@ df = pd.DataFrame(results)
 print(f"✅ {len(df)} enregistrements chargés")
 
 # =====================================================
-# NETTOYAGE RENFORCÉ DES DONNÉES
+# NETTOYAGE RENFORCÉ DES DONNÉES - Version Universelle
 # =====================================================
 
 # Supprimer les colonnes complètement vides
 df = df.dropna(axis=1, how='all')
 
 # =====================================================
-# CORRECTION CRITIQUE 1 : Nettoyage de la colonne PROVINCE
+# NETTOYAGE AUTOMATIQUE DE TOUTES LES COLONNES
 # =====================================================
-province_col = '_1_a_Vous_etes_de_quelle_provi'
-if province_col in df.columns:
-    # Convertir TOUTE la colonne en string pour éviter l'erreur de tri (float vs str)
-    df[province_col] = df[province_col].fillna('Non renseigné').astype(str)
-    print(f"🗺️ Colonne province nettoyée. Valeurs uniques: {df[province_col].nunique()}")
 
-# =====================================================
-# CORRECTION CRITIQUE 2 : Nettoyage de la colonne ÂGE
-# =====================================================
+# 1. Nettoyer TOUTES les colonnes catégorielles (textes)
+for col in df.columns:
+    if df[col].dtype == 'object':
+        # Remplacer les valeurs vides par 'Non renseigné'
+        df[col] = df[col].fillna('Non renseigné')
+        # Convertir en string (texte) pour éviter l'erreur float vs str
+        df[col] = df[col].astype(str)
+        # Nettoyer les valeurs 'nan' ou 'None' qui pourraient rester
+        df[col] = df[col].replace(['nan', 'None', 'NaN'], 'Non renseigné')
+
+print("✅ Nettoyage des colonnes textuelles terminé")
+
+# 2. Nettoyer la colonne ÂGE (spécifique car numérique)
 if '_4_Quel_est_votre_ge_' in df.columns:
-    # Convertir en numérique, forcer les erreurs (texte, points, etc.) en NaN
     df['_4_Quel_est_votre_ge_'] = pd.to_numeric(df['_4_Quel_est_votre_ge_'], errors='coerce')
-    # Remplacer les NaN par la valeur médiane (optionnel)
     median_age = df['_4_Quel_est_votre_ge_'].median()
     df['_4_Quel_est_votre_ge_'] = df['_4_Quel_est_votre_ge_'].fillna(median_age)
     print(f"📊 Âges nettoyés - Médiane: {median_age}")
 
-# Nettoyage des autres colonnes catégorielles
-for col in df.columns:
-    if df[col].dtype == 'object':
-        df[col] = df[col].fillna('Non renseigné')
-        df[col] = df[col].astype(str)
-
-# Nettoyage des dates
+# 3. Nettoyage des dates
 if '_submission_time' in df.columns:
     df['_submission_time'] = pd.to_datetime(df['_submission_time'], errors='coerce')
     # Supprimer les dates nulles
     df = df.dropna(subset=['_submission_time'])
+    print(f"📅 Dates nettoyées")
 
 OBJECTIF = 400
 POURCENTAGE = min(100, (len(df) / OBJECTIF) * 100) if len(df) > 0 else 0
