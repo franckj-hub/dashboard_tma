@@ -1,14 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[ ]:
-
-
-#!pip install dash-bootstrap-components
-
-
-# In[11]:
-
 import os
 import requests
 import pandas as pd
@@ -18,13 +10,15 @@ from dash import Dash, dcc, html, Input, Output, State
 import dash_bootstrap_components as dbc
 from datetime import datetime, timedelta
 import numpy as np
+import warnings
+warnings.filterwarnings('ignore')
 
-# ====================================================
+# =====================================================
 # CONFIGURATION KOBO
-# ====================================================
+# =====================================================
 
 TOKEN = "c74687b69db732f0ceab7271687d0f92f1a9c84c"
-UID = "aacEWzbiaWLh2UKRYQDgZB" 
+UID = "aacEWzbiaWLh2UKRYQDgZB"
 
 headers = {"Authorization": f"Token {TOKEN}"}
 
@@ -50,15 +44,25 @@ df = pd.DataFrame(results)
 print(f"✅ {len(df)} enregistrements chargés")
 
 # =====================================================
-# NETTOYAGE DES DONNÉES
+# NETTOYAGE RENFORCÉ DES DONNÉES
 # =====================================================
 
 # Supprimer les colonnes complètement vides
 df = df.dropna(axis=1, how='all')
 
-# Nettoyer les colonnes problématiques
+# =====================================================
+# CORRECTION CRITIQUE : Nettoyage de la colonne ÂGE
+# =====================================================
+if '_4_Quel_est_votre_ge_' in df.columns:
+    # Convertir en numérique, forcer les erreurs (texte, points, etc.) en NaN
+    df['_4_Quel_est_votre_ge_'] = pd.to_numeric(df['_4_Quel_est_votre_ge_'], errors='coerce')
+    # Remplacer les NaN par la valeur médiane (optionnel)
+    median_age = df['_4_Quel_est_votre_ge_'].median()
+    df['_4_Quel_est_votre_ge_'] = df['_4_Quel_est_votre_ge_'].fillna(median_age)
+    print(f"📊 Âges nettoyés - Médiane: {median_age}")
+
+# Nettoyage des autres colonnes catégorielles
 for col in df.columns:
-    # Convertir en string pour éviter les erreurs de tri
     if df[col].dtype == 'object':
         df[col] = df[col].fillna('Non renseigné')
         df[col] = df[col].astype(str)
@@ -66,9 +70,13 @@ for col in df.columns:
 # Nettoyage des dates
 if '_submission_time' in df.columns:
     df['_submission_time'] = pd.to_datetime(df['_submission_time'], errors='coerce')
+    # Supprimer les dates nulles
+    df = df.dropna(subset=['_submission_time'])
 
 OBJECTIF = 400
 POURCENTAGE = min(100, (len(df) / OBJECTIF) * 100) if len(df) > 0 else 0
+
+print(f"📊 Après nettoyage: {len(df)} enregistrements valides")
 
 # =====================================================
 # LISTE DES VARIABLES DISPONIBLES
@@ -277,10 +285,11 @@ app.layout = dbc.Container([
                             html.Label("📊 Âge"),
                             dcc.RangeSlider(
                                 id='filtre_age',
-                                min=18,
-                                max=100,
+                                min=int(df['_4_Quel_est_votre_ge_'].min()) if '_4_Quel_est_votre_ge_' in df.columns and not df['_4_Quel_est_votre_ge_'].isna().all() else 18,
+                                max=int(df['_4_Quel_est_votre_ge_'].max()) if '_4_Quel_est_votre_ge_' in df.columns and not df['_4_Quel_est_votre_ge_'].isna().all() else 100,
                                 step=1,
-                                value=[18, 100],
+                                value=[int(df['_4_Quel_est_votre_ge_'].min()) if '_4_Quel_est_votre_ge_' in df.columns and not df['_4_Quel_est_votre_ge_'].isna().all() else 18,
+                                       int(df['_4_Quel_est_votre_ge_'].max()) if '_4_Quel_est_votre_ge_' in df.columns and not df['_4_Quel_est_votre_ge_'].isna().all() else 100],
                                 marks={18: '18', 30: '30', 50: '50', 70: '70', 100: '100'}
                             )
                         ], width=12)
@@ -293,7 +302,7 @@ app.layout = dbc.Container([
 ], fluid=True)
 
 # =====================================================
-# FONCTION DE FILTRAGE
+# FONCTION DE FILTRAGE (Version robuste)
 # =====================================================
 
 def filter_data(dff, periode, provinces, sexe, culture, engrais, satisfaction, enqueteurs, age_range):
@@ -332,15 +341,19 @@ def filter_data(dff, periode, provinces, sexe, culture, engrais, satisfaction, e
     if enqueteurs and '_submitted_by' in dff.columns:
         dff = dff[dff['_submitted_by'].isin(enqueteurs)]
     
-    # Filtre âge
+    # Filtre âge (Version ROBUSTE)
     if '_4_Quel_est_votre_ge_' in dff.columns:
+        # Convertir en numérique, forcer les erreurs en NaN
         dff['_4_Quel_est_votre_ge_'] = pd.to_numeric(dff['_4_Quel_est_votre_ge_'], errors='coerce')
+        # Supprimer les lignes où l'âge est NaN
+        dff = dff.dropna(subset=['_4_Quel_est_votre_ge_'])
+        # Appliquer le filtre de plage
         dff = dff[(dff['_4_Quel_est_votre_ge_'] >= age_range[0]) & (dff['_4_Quel_est_votre_ge_'] <= age_range[1])]
     
     return dff
 
 # =====================================================
-# CALLBACKS
+# CALLBACKS (IDENTIQUES À L'ORIGINAL)
 # =====================================================
 
 # Graphique évolution
@@ -505,15 +518,14 @@ def update_analyse(variable, graph_type, mode, periode, provinces, sexe, culture
 # =====================================================
 
 if __name__ == '__main__':
-    import os
     port = int(os.environ.get("PORT", 8056))
     print("\n" + "="*60)
-    print("🚀 DASHBOARD TMA - VERSION FINALE")
+    print("🚀 DASHBOARD TMA - VERSION CORRIGÉE")
     print("="*60)
     print(f"\n📊 {len(df)} / {OBJECTIF} SOUMISSIONS")
+    print(f"📈 Objectif restant: {max(0, OBJECTIF - len(df))} soumissions")
     print("\n🔍 Filtres disponibles sur TOUTES les variables")
     print("\n📍 Lien public bientôt disponible")
     print("="*60 + "\n")
     
     app.run(debug=False, host='0.0.0.0', port=port)
-
