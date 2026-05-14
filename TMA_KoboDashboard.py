@@ -51,7 +51,16 @@ print(f"✅ {len(df)} enregistrements chargés")
 df = df.dropna(axis=1, how='all')
 
 # =====================================================
-# CORRECTION CRITIQUE : Nettoyage de la colonne ÂGE
+# CORRECTION CRITIQUE 1 : Nettoyage de la colonne PROVINCE
+# =====================================================
+province_col = '_1_a_Vous_etes_de_quelle_provi'
+if province_col in df.columns:
+    # Convertir TOUTE la colonne en string pour éviter l'erreur de tri (float vs str)
+    df[province_col] = df[province_col].fillna('Non renseigné').astype(str)
+    print(f"🗺️ Colonne province nettoyée. Valeurs uniques: {df[province_col].nunique()}")
+
+# =====================================================
+# CORRECTION CRITIQUE 2 : Nettoyage de la colonne ÂGE
 # =====================================================
 if '_4_Quel_est_votre_ge_' in df.columns:
     # Convertir en numérique, forcer les erreurs (texte, points, etc.) en NaN
@@ -77,7 +86,6 @@ OBJECTIF = 400
 POURCENTAGE = min(100, (len(df) / OBJECTIF) * 100) if len(df) > 0 else 0
 
 print(f"📊 Après nettoyage: {len(df)} enregistrements valides")
-
 # =====================================================
 # LISTE DES VARIABLES DISPONIBLES
 # =====================================================
