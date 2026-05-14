@@ -23,8 +23,7 @@ import numpy as np
 # CONFIGURATION KOBO
 # ====================================================
 
-TOKEN = os.environ.get("KOBO_TOKEN", "")
-
+TOKEN = "c74687b69db732f0ceab7271687d0f92f1a9c84c"
 UID = "aacEWzbiaWLh2UKRYQDgZB" 
 
 headers = {"Authorization": f"Token {TOKEN}"}
